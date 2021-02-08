@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 
 import br.com.primeinterway.deviceapi.driver.CdcAcmSerialDriver;
 import br.com.primeinterway.deviceapi.driver.UsbSerialDriver;
@@ -201,6 +202,15 @@ public class ScannerInterface {
             return true;
         }
         return false;
+    }
+
+    public UsbDevice findScanner(ArrayList<UsbDevice> usbs) {
+        for(UsbDevice usb : usbs) {
+            if(usb.getManufacturerName() != null && usb.getManufacturerName().equalsIgnoreCase("Newland")) {
+                return usb;
+            }
+        }
+        return null;
     }
 
     // 4 = Falha de permissão do dispositivo
