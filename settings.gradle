@@ -1,0 +1,3 @@
+include ':DeviceAPI'
+include ':app'
+rootProject.name = "S1DeviceAPI"
