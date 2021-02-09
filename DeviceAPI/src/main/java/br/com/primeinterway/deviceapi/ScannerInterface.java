@@ -12,15 +12,10 @@ import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import br.com.primeinterway.deviceapi.driver.CdcAcmSerialDriver;
 import br.com.primeinterway.deviceapi.driver.UsbSerialDriver;
@@ -390,7 +385,7 @@ public class ScannerInterface {
             try {
                 Thread.sleep(100L);
             } catch (InterruptedException e) {
-                Log.d("Scanner-AAR", "Check the firmware");;
+                Log.d("Scanner-AAR", "Check the firmware");
             }
             Calendar calendar1 = Calendar.getInstance();
             if (calendar.before(calendar1))
@@ -401,7 +396,7 @@ public class ScannerInterface {
                 try {
                     Thread.sleep(100L);
                 } catch (InterruptedException e) {
-                    Log.d("Scanner-AAR", "Check the firmware");;
+                    Log.d("Scanner-AAR", "Check the firmware");
                 }
             }
         }
