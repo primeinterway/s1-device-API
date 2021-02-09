@@ -1,5 +1,7 @@
 # s1-device-API - Métodos
 
+[![](https://jitpack.io/v/primeinterway/s1-device-API.svg)](https://jitpack.io/#primeinterway/s1-device-API)
+
 	init
 		// -7 = Erro de Driver
 		// -6 = Manager não conseguiu se comunicar com o dispositivo
