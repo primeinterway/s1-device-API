@@ -219,7 +219,8 @@ public class ScannerInterface {
         return null;
     }
 
-    public UsbDevice findScanner(HashMap<String, UsbDevice> usbDevices) {
+    private UsbDevice findScanner() {
+        HashMap<String, UsbDevice> usbDevices = this.usbManager.getDeviceList();
         Collection<UsbDevice> ite = usbDevices.values();
         UsbDevice[] usbs = ite.toArray(new UsbDevice[]{});
 
@@ -231,13 +232,14 @@ public class ScannerInterface {
         return null;
     }
 
-    public int init(UsbDevice usb) throws IOException {
+    public int init() throws IOException {
+        if (this.context == null || this.usbManager == null) {
+            return -3;
+        }
+        UsbDevice usb = findScanner();
         UsbDeviceConnection connection = null;
         if (usb == null) {
             return -5;
-        }
-        if (this.context == null || this.usbManager == null) {
-            return -3;
         }
         if (usb.getProductId() == 10758 && usb.getVendorId() == 7851) {
             UsbSerialDriver driver = new CdcAcmSerialDriver(usb);
