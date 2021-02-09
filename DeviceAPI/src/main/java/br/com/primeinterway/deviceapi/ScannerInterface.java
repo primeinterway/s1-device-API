@@ -1,24 +1,35 @@
 package br.com.primeinterway.deviceapi;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
-
-import androidx.appcompat.app.AppCompatActivity;
+import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import br.com.primeinterway.deviceapi.driver.CdcAcmSerialDriver;
 import br.com.primeinterway.deviceapi.driver.UsbSerialDriver;
 import br.com.primeinterway.deviceapi.driver.UsbSerialPort;
+import br.com.primeinterway.deviceapi.util.SerialInputOutputManager;
 
 public class ScannerInterface {
 
-    private static String INTENT_ACTION_GRANT_USB;
+    private static String INTENT_ACTION_GRANT_USB = "com.android.nlscanner.USB_PERMISSION";;
 
     public static final int Code128 = 0;
     public static final int EAN8 = 1;
@@ -71,19 +82,44 @@ public class ScannerInterface {
     public static final int ALL2D = 48;
     public static final int ALL = 49;
 
-    private UsbDevice usb;
-    private UsbManager usbManager;
-    private UsbSerialPort port;
+    protected UsbDevice usb;
+    protected UsbManager usbManager;
+    protected UsbSerialPort port;
 
-    private AppCompatActivity activity;
+    private Context context;
 
-    public ScannerInterface(AppCompatActivity activity, UsbManager manager) {
-        this.activity = activity;
-        this.usbManager = manager;
+    protected boolean permissionGranted;
+    protected boolean permissionFinished;
+
+    public int timeout;
+
+    protected BroadcastReceiver mUsbReceiver;
+
+    public ScannerInterface(Context context) {
+        this.timeout = 50000;
+        this.mUsbReceiver = new BroadcastReceiver() {
+            public void onReceive(Context rcontext, Intent intent) {
+                String action = intent.getAction();
+                if ("com.android.nlscanner.USB_PERMISSION".equals(action)) {
+                    UsbDevice device = (UsbDevice) intent.getParcelableExtra("device");
+                    if(intent.getBooleanExtra("permission", false)) {
+                        if(device != null) {
+                            permissionGranted = true;
+                        }
+                    } else {
+                        permissionGranted = false;
+                    }
+                    permissionFinished = true;
+                    rcontext.unregisterReceiver(this);
+                }
+            }
+        };
+        this.context = context;
+        this.usbManager = (UsbManager) this.context.getSystemService(Context.USB_SERVICE);
     }
 
-    public String knowSymbology(int i) {
-        switch(i) {
+    private String knowSymbology(int i) {
+        switch (i) {
             case Code128:
                 return "128ENA";
             case EAN8:
@@ -188,76 +224,84 @@ public class ScannerInterface {
         return null;
     }
 
-    public UsbSerialPort getUsbPort() {
-        if(port != null) {
-            return port;
-        } else {
-            return null;
-        }
-    }
+    public UsbDevice findScanner(HashMap<String, UsbDevice> usbDevices) {
+        Collection<UsbDevice> ite = usbDevices.values();
+        UsbDevice[] usbs = ite.toArray(new UsbDevice[]{});
 
-    public Boolean isReturnConfig(byte[] data) {
-        String string = new String(data);
-        if(string.contains("ALGUM CARACTER DE RETORNO DE CONFIG")) {
-            return true;
-        }
-        return false;
-    }
-
-    public UsbDevice findScanner(ArrayList<UsbDevice> usbs) {
-        for(UsbDevice usb : usbs) {
-            if(usb.getManufacturerName() != null && usb.getManufacturerName().equalsIgnoreCase("Newland")) {
+        for (UsbDevice usb : usbs) {
+            if (usb.getProductId() == 10758 && usb.getVendorId() == 7851) {
                 return usb;
             }
         }
         return null;
     }
 
-    // 4 = Falha de permissão do dispositivo
-    // 3 = Manager não configurado
-    // 2 = Scanner não encontrado
-    // -1 = Falha de comunicação USB
-    // 0 = OK
     public int init(UsbDevice usb) throws IOException {
-        if(this.activity == null || this.usbManager == null) {
-            return 3;
+        UsbDeviceConnection connection = null;
+        if (usb == null) {
+            return -5;
         }
-        if(usb.getManufacturerName() != null && usb.getManufacturerName().contains("Newland")) {
-            INTENT_ACTION_GRANT_USB = activity.getApplicationContext().getPackageName() + ".GRANT_USB";
-            PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(activity.getApplicationContext(), 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
-            usbManager.requestPermission(usb, usbPermissionIntent);
-            if(usbManager.hasPermission(usb)) {
-                this.usb = usb;
-            } else {
-                return 4;
+        if (this.context == null || this.usbManager == null) {
+            return -3;
+        }
+        if (usb.getProductId() == 10758 && usb.getVendorId() == 7851) {
+            UsbSerialDriver driver = new CdcAcmSerialDriver(usb);
+            if(driver.getPorts().size() <= 0) {
+                return -7;
             }
-        } else {
-            return 2;
+            this.port = driver.getPorts().get(0);
+            requestPermission(usb);
+            if(!usbManager.hasPermission(usb)) {
+                return -4;
+            } else {
+                connection = this.usbManager.openDevice(usb);
+                this.usb = usb;
+            }
         }
-        UsbSerialDriver driver = new CdcAcmSerialDriver(usb);
-        UsbDeviceConnection connection = usbManager.openDevice(this.usb);
         if(connection == null) {
-            return -1;
+            return -6;
         }
-        port = driver.getPorts().get(0);
-        port.open(connection);
-        port.setParameters(19200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+        if(this.port != null) {
+            this.port.open(connection);
+            this.port.setParameters(19200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+            return 0;
+        }
+        return -1;
+    }
 
-        if(port.isOpen()) {
+    public int close() throws IOException {
+        if(this.port == null) {
+            return -2;
+        }
+        if(this.port.isOpen()) {
+            this.port.close();
+            this.usb = null;
+            this.usbManager = null;
+            this.context.unregisterReceiver(this.mUsbReceiver);
+            this.mUsbReceiver = null;
+            this.context = null;
             return 0;
         } else {
             return -1;
         }
     }
 
+    public int getStatus() {
+        if(this.port == null) {
+            return -2;
+        } else {
+            return this.port.isOpen() ? 0 : -1;
+        }
+    }
+
     public void setSymbology(Boolean status, int symbology) throws RuntimeException {
-        if(port == null) {
+        if (this.port == null) {
             throw new RuntimeException("A conexão é nula");
         }
         try {
 
             byte[] stt;
-            if(status) {
+            if (status) {
                 stt = "1".getBytes();
             } else {
                 stt = "0".getBytes();
@@ -280,11 +324,88 @@ public class ScannerInterface {
 
             byte[] data = outputStream.toByteArray();
 
-            port.write(data, 2000);
+            this.port.write(data, 2000);
 
         } catch (Exception e) {
             throw new RuntimeException("Erro de configuração");
         }
+    }
+
+    public Boolean isReturnConfig(byte[] data) {
+        String string = new String(data);
+        for (int i = 0; i < 49; i++) {
+            if (string.contains(knowSymbology(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Boolean getConfigReturn(byte[] data) {
+        String string = new String(data);
+        for (int i = 0; i < 49; i++) {
+            if (string.contains(knowSymbology(i))) {
+                byte rcontent = data[data.length - 3];
+                if (rcontent != 6) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public int joinListener(SerialInputOutputManager.Listener activity) {
+        if(this.port == null) {
+            return -2;
+        }
+        if (activity != null) {
+            if (this.port.isOpen()) {
+                SerialInputOutputManager usbIoManager = new SerialInputOutputManager(port, activity);
+                Executors.newSingleThreadExecutor().submit(usbIoManager);
+                return 0;
+            } else {
+                return -1;
+            }
+        }
+        return -3;
+    }
+
+    private boolean requestPermission(UsbDevice usb) {
+        if(this.usbManager.hasPermission(usb)) {
+            return true;
+        }
+        this.permissionFinished = false;
+        this.permissionGranted = false;
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this.context, 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
+        IntentFilter intentFilter = new IntentFilter(INTENT_ACTION_GRANT_USB);
+        this.context.registerReceiver(mUsbReceiver, intentFilter);
+        this.usbManager.requestPermission(usb, pendingIntent);
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.add(14, this.timeout);
+
+        while (!this.permissionFinished && !this.usbManager.hasPermission(usb)) {
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException e) {
+                Log.d("Scanner-AAR", "Check the firmware");;
+            }
+            Calendar calendar1 = Calendar.getInstance();
+            if (calendar.before(calendar1))
+                break;
+        }
+        if(this.permissionGranted) {
+            while(!this.usbManager.hasPermission(usb)) {
+                try {
+                    Thread.sleep(100L);
+                } catch (InterruptedException e) {
+                    Log.d("Scanner-AAR", "Check the firmware");;
+                }
+            }
+        }
+        return this.usbManager.hasPermission(usb);
     }
 
 }
