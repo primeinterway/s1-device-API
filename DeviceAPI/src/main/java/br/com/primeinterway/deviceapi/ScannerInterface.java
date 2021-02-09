@@ -89,6 +89,7 @@ public class ScannerInterface {
     protected int timeout;
 
     protected BroadcastReceiver mUsbReceiver;
+    private SerialInputOutputManager usbIoManager;
 
     public ScannerInterface(Context context) {
         this.timeout = 50000;
@@ -271,10 +272,16 @@ public class ScannerInterface {
             return -2;
         }
         if(this.port.isOpen()) {
-            this.port.close();
             this.usb = null;
+            if(this.usbIoManager != null) {
+                this.usbIoManager.stop();
+            }
+            this.usbIoManager = null;
+            try {
+                this.port.close();
+            } catch (IOException ignored) {}
+            this.port = null;
             this.usbManager = null;
-            this.context.unregisterReceiver(this.mUsbReceiver);
             this.mUsbReceiver = null;
             this.context = null;
             return 0;
@@ -291,19 +298,17 @@ public class ScannerInterface {
         }
     }
 
-    public void setSymbology(Boolean status, int symbology) throws RuntimeException {
+    public void setSymbology(Boolean status, int symbology) {
         if (this.port == null) {
-            throw new RuntimeException("A conexão é nula");
+            return;
         }
         try {
-
             byte[] stt;
             if (status) {
                 stt = "1".getBytes();
             } else {
                 stt = "0".getBytes();
             }
-
             byte[] header = {0x7E, 0x01};
             byte[] body1 = "0000@".getBytes();
             byte[] body2 = knowSymbology(symbology).getBytes();
@@ -320,12 +325,9 @@ public class ScannerInterface {
             outputStream.write(footer);
 
             byte[] data = outputStream.toByteArray();
-
             this.port.write(data, 2000);
 
-        } catch (Exception e) {
-            throw new RuntimeException("Erro de configuração");
-        }
+        } catch (IOException e) { }
     }
 
     public Boolean isConfigReturn(byte[] data) {
@@ -359,8 +361,8 @@ public class ScannerInterface {
         }
         if (activity != null) {
             if (this.port.isOpen()) {
-                SerialInputOutputManager usbIoManager = new SerialInputOutputManager(port, activity);
-                Executors.newSingleThreadExecutor().submit(usbIoManager);
+                this.usbIoManager = new SerialInputOutputManager(port, activity);
+                Executors.newSingleThreadExecutor().submit(this.usbIoManager);
                 return 0;
             } else {
                 return -1;
