@@ -86,7 +86,7 @@ public class ScannerInterface {
     protected boolean permissionGranted;
     protected boolean permissionFinished;
 
-    public int timeout;
+    protected int timeout;
 
     protected BroadcastReceiver mUsbReceiver;
 
