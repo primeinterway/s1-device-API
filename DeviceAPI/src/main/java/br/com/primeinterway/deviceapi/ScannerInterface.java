@@ -328,7 +328,7 @@ public class ScannerInterface {
         }
     }
 
-    public Boolean isReturnConfig(byte[] data) {
+    public Boolean isConfigReturn(byte[] data) {
         String string = new String(data);
         for (int i = 0; i < 49; i++) {
             if (string.contains(knowSymbology(i))) {
