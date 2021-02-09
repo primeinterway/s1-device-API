@@ -29,12 +29,9 @@
 		// 0 = OK
 		
 	
-	
-	findScanner(HashMap<String, UsbDevice>)
-		Uso: Efetua uma varredura na Hash fornecida e retorna o dispositivo ideal para conexão
 		
-	init(UsbDevice)
-		Uso: Inicia e estabelece conexão com o dispositivo USB informado no parâmetro
+	init()
+		Uso: Inicia e estabelece conexão com o dispositivo USB ideal
 		
 	close()
 		Uso: Encerra conexão com o dispositivo e finaliza o gerenciador
@@ -45,4 +42,5 @@
 	setSymbology(Boolean, int)
 		Uso: Habilita ou desabilita o uso de uma simbologia no scanner
 		
+	
 	
